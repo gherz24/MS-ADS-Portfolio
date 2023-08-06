@@ -1,0 +1,264 @@
+---
+title: "clustering"
+author: "Gabe Herz"
+date: "2023-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse, warn.conflicts = FALSE)  # data manipulation
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering algorithms & visualization
+library(gridExtra)  # subfigure layout package
+```
+
+```{r}
+ch = read.csv("ch.csv")
+ch = ch[,1:24]
+ch = scale(ch)
+```
+
+```{r}
+set.seed(123)
+fviz_nbclust(ch, kmeans, method = "silhouette")
+```
+```{r}
+final.res = kmeans(ch,2, nstart = 25)
+
+fviz_cluster(final.res, data = ch, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Changeup Clustering by Pitchers")
+
+ch = as.data.frame(ch)
+ch$cluster = final.res$cluster
+
+ch|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+
+final.res$centers
+
+```
+```{r}
+ff <- read.csv("ff.csv")
+ff = ff[,1:24]
+ff = scale(ff)
+
+set.seed(123)
+fviz_nbclust(ff, kmeans, method = "silhouette")
+
+final.res = kmeans(ff,3, nstart = 25)
+
+fviz_cluster(final.res, data = ff, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Four-Seam Fastball Clustering by Pitchers")
+
+ff = as.data.frame(ff)
+ff$cluster = final.res$cluster
+
+ff|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+
+```
+```{r}
+sl <- read.csv("sl.csv")
+sl = sl[,1:24]
+sl = scale(sl)
+
+set.seed(123)
+fviz_nbclust(sl, kmeans, method = "silhouette")
+
+final.res = kmeans(sl,3, nstart = 25)
+
+fviz_cluster(final.res, data = sl, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Slider Clustering by Pitchers")
+
+sl = as.data.frame(sl)
+sl$cluster = final.res$cluster
+
+sl|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+
+```{r}
+cu <- read.csv("cu.csv")
+cu = scale(cu)
+
+set.seed(123)
+fviz_nbclust(cu, kmeans, method = "silhouette")
+
+final.res = kmeans(cu,4, nstart = 25)
+
+fviz_cluster(final.res, data = cu, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Curveball Clustering by Pitchers")
+
+cu = as.data.frame(cu)
+cu$cluster = final.res$cluster
+
+cu|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+
+```{r}
+two_seam = read.csv("ft.csv")
+two_seam = scale(two_seam)
+
+set.seed(123)
+fviz_nbclust(two_seam, kmeans, method = "silhouette")
+
+final.res = kmeans(two_seam,3, nstart = 25)
+
+fviz_cluster(final.res, data = two_seam, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Two-Seam Fastball Clustering by Pitchers")
+
+two_seam = as.data.frame(two_seam)
+two_seam$cluster = final.res$cluster
+
+two_seam|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+
+```
+```{r}
+si = read.csv("si.csv")
+si = scale(si)
+
+set.seed(123)
+fviz_nbclust(si, kmeans, method = "silhouette")
+
+final.res = kmeans(si,3, nstart = 25)
+
+fviz_cluster(final.res, data = si, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Sinker Clustering by Pitchers")
+
+si = as.data.frame(si)
+si$cluster = final.res$cluster
+
+si|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+```{r}
+#Splitter
+fs = read.csv("fs.csv")
+fs = scale(fs)
+
+set.seed(123)
+fviz_nbclust(fs, kmeans, method = "silhouette")
+
+final.res = kmeans(fs,2, nstart = 25)
+
+fviz_cluster(final.res, data = fs, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Splitter Clustering by Pitchers")
+
+fs = as.data.frame(fs)
+fs$cluster = final.res$cluster
+
+fs|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+```{r}
+#cutter
+fc = read.csv("fc.csv")
+fc = scale(fc)
+
+set.seed(123)
+fviz_nbclust(fc, kmeans, method = "silhouette")
+
+final.res = kmeans(fc,2, nstart = 25)
+
+fviz_cluster(final.res, data = fc, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Cutter Clustering by Pitchers")
+
+fc = as.data.frame(fc)
+fc$cluster = final.res$cluster
+
+fc|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+
+```{r}
+#knuckle curve
+kc = read.csv("kc.csv")
+kc = scale(kc)
+
+set.seed(123)
+fviz_nbclust(kc, kmeans, method = "silhouette")
+
+final.res = kmeans(kc,3, nstart = 25)
+
+fviz_cluster(final.res, data = kc, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Knuckle-Curve Clustering by Pitchers")
+
+kc = as.data.frame(kc)
+kc$cluster = final.res$cluster
+
+kc|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+```{r}
+#cant run
+sc = read.csv("sc.csv")
+#11sc = scale(sc)
+
+set.seed(123)
+fviz_nbclust(sc, kmeans, method = "silhouette")
+
+final.res = kmeans(sc,3, nstart = 25)
+
+fviz_cluster(final.res, data = sc, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Screwball Clustering by Pitchers")
+
+sc = as.data.frame(sc)
+sc$cluster = final.res$cluster
+
+sc|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+```{r}
+kn = read.csv("kn.csv")
+#kn = scale(kn)
+
+set.seed(123)
+fviz_nbclust(kn, kmeans, method = "silhouette")
+
+final.res = kmeans(kn,3, nstart = 25)
+
+fviz_cluster(final.res, data = kn, geom = "point", pointsize = 2, alpha = 0.5) +
+  ggtitle("Knuckleball Clustering by Pitchers")
+
+kn = as.data.frame(kn)
+kn$cluster = final.res$cluster
+
+kn|> 
+  group_by(cluster) |> 
+  summarise_all(mean)
+```
+```{r}
+library(ggplot2)
+
+# Create a data frame with the pitch type categories and corresponding values
+pitch_counts <- data.frame(
+  pitch_type = c("ff", "ch", "sl", "ft", "cu", "si", "fc", "fs", "kc", "kn", "sc"),
+  count = c(1234, 1122, 1031, 766, 866, 306, 371, 107, 84, 4, 1)
+)
+
+# Create a histogram with ggplot2
+ggplot(pitch_counts, aes(x = pitch_type, y = count)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  ggtitle("Number of Pitchers Who Throw Each Pitch Type")
+
+```
+```{r}
+ff2 <- read.csv("ff.csv")
+```
+

@@ -1,0 +1,334 @@
+---
+title: "Untitled"
+output: html_document
+date: '2023-04-17'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+install.packages("rlang")
+```
+
+
+```{r}
+library(tidyverse)
+
+pitches <- read_csv("pitches.csv")
+
+```
+
+```{r}
+#preprocessing steps for initial arules. Creates a categorical "Count" for each ball/strike scenario 
+pitches <- pitches %>% mutate(Count = case_when(b_count == 0 & s_count == 0 ~ "Zero-Zero", b_count == 0 & s_count == 1 ~ "Zero-One", b_count == 0 & s_count == 2 ~ "Zero-Two", b_count == 1 & s_count == 0 ~ "One-Zero", b_count == 1 & s_count == 1 ~ "One-One", b_count == 1 & s_count == 2 ~ "One-Two", b_count == 2 & s_count == 0 ~ "Two-Zero", b_count == 2 & s_count == 1 ~ "Two-One", b_count == 2 & s_count == 2 ~ "Two-Two", b_count == 3 & s_count == 0 ~ "Three-Zero", b_count == 3 & s_count == 1 ~ "Three-One", b_count == 3 & s_count == 2 ~ "Three-Two"))
+
+pitches$outs <- as.factor(pitches$outs)
+
+#selects the important pitches (removes pitch outs, intentional balls, etc..)
+pitches <- filter(pitches, pitch_type == "FF" | pitch_type == "FS" | pitch_type == "FT" | pitch_type == "FC" | pitch_type == "SI" |
+                  pitch_type == "CH" | pitch_type == "CU" | pitch_type == "KC" | pitch_type == "KN" | pitch_type == "SC" | pitch_type == "SL")
+
+#creates general variable for pitch type classifying all pitches as either a fastball or offspeed. 
+pitches <- pitches %>% mutate(pitch_general = case_when(pitch_type == "FF" | pitch_type == "FS" |
+                                                        pitch_type == "FT" | pitch_type == "FC" |
+                                                        pitch_type == "SI" ~ "Fastball",
+                                                        pitch_type == "CH" | pitch_type == "CU" |
+                                                        pitch_type == "EP" | pitch_type == "KC" |
+                                                        pitch_type == "KN" | pitch_type == "SC" |
+                                                        pitch_type == "SL" ~ "Off Speed",
+                                                        TRUE ~ "Other"))
+```
+
+```{r}
+#More preprocessing: Creates a new dataframe that includes only the variables included for first set of arules: game scenarios and pitch type
+Arulesdata1 <- data.frame(pitches$outs, pitches$on_1b, pitches$on_2b, pitches$on_3b, pitches$Count, pitches$pitch_type)
+Arulesdata1 <- Arulesdata1 %>% mutate_all(as.factor)
+Arulesdata1 <- rename(Arulesdata1, "Outs" = pitches.outs, "On_1b" = pitches.on_1b, "On_2b" = pitches.on_2b, "On_3b" = pitches.on_3b,
+                      "Count" = pitches.Count, "Pitch_Type" = pitches.pitch_type)
+summary(Arulesdata1)
+
+#creates a dataset that shows how often each pitch is thrown. This is important for determining the base rates for each pitch type.
+ArulesCount <- Arulesdata1 %>% group_by(Pitch_Type) %>% summarise(n())
+```
+
+```{r}
+#Creates first set of arules with right hand side set to Four seam fastballs. Essentially will show us what game scenarios are associated with four seam fastballs being thrown
+
+library(arules)
+library(arulesViz)
+FFRHS <- apriori(Arulesdata1,
+                    parameter = list(supp = 0.001, 
+                                     conf = 0.6,
+                                     minlen = 2),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'Pitch_Type=FF'),
+                    control = list(verbose = F))
+
+FFRHS = sort(FFRHS,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(FFRHS)
+```
+
+
+```{r}
+#Creates second set of arules with right hand side set to Slider. Essentially will show us what game scenarios are associated with sliders being thrown.
+SLRHS <- apriori(Arulesdata1,
+                    parameter = list(supp = 0.001, 
+                                     conf = 0.2,
+                                     minlen = 2),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'Pitch_Type=SL'),
+                    control = list(verbose = F))
+
+SLRHS = sort(SLRHS,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(SLRHS)
+```
+
+
+```{r}
+#reads the outcome data. This data only includes the pitches that generated an in game result (in play out, in play hit, strikeout, etc..)
+outcome <- read_csv("707 outcome_data.csv")
+outcome <- drop_na(outcome)
+#converts relevant data into facor variables
+outcome$pitch_type <- as.factor(outcome$pitch_type)
+outcome$event <- as.factor(outcome$event)
+outcome$stand <- as.factor(outcome$stand)
+outcome$R <- outcome$event
+summary(outcome)
+#creates a dataset with the count of each potential outcome. This is important for determining the base rates of each game result. second command filters only the relevant outcomes.
+OutcomeCount <- outcome %>% group_by(event) %>% summarise(n())
+outcome <- filter(outcome, R == "Double" | R == "Double Play" | R == "Field Error" | R == "Fielders Choice" | R == "Fielders Choice Out" |
+                    R == "Flyout" | R == "Force Out" | R == "Grounded Into DP" | R == "Groundout" | R == "Lineout" | R == "Home Run" |
+                    R == "Popout" | R == "Single" | R == "Strikeout" | R == "Strikeout - DP" | R == "Triple" | R == "Triple Play")
+```
+
+```{r}
+#This chunk of code is the preprocessing steps for the second set of association rules that look to determine how the physical properties of pitch type can be associated with the outcome of the pitch. Each case_when function bins the relevant numeric variables into categorical bins to suit the apriori association rules algorthim, before mutating them all as factor variables.
+
+outcomeRules <- outcome %>% 
+  select(start_speed, px, pz, spin_rate, spin_dir, pitch_type, R, stand) %>%
+  mutate(start_speed = case_when(start_speed >= 99 ~ 'Fastest',
+                                         start_speed >= 93 ~ 'Fast',
+                                         start_speed >= 88 ~ 'Medium',
+                                         start_speed >= 80 ~ 'Slow',
+                                         start_speed >= 70 ~ 'Slower',
+                                         TRUE ~ 'Slowest'
+                                         )) %>%
+  mutate(px = case_when(px >= 1 ~ 'Out Right',
+                        px >= 0 ~ 'In Right',
+                        px >= -1 ~ 'In Left',
+                        TRUE ~ 'Out Left'
+                          )) %>%
+  mutate(pz = case_when(pz >= 3.5 ~ 'Out High',
+                        pz >= 2.25 ~ 'In High',
+                        pz >= 1 ~ 'In Low',
+                        pz > 0 ~ 'Out Low',
+                        TRUE ~ 'Ground'
+                        )) %>%
+  mutate(spin_rate = case_when(spin_rate >= 2500 ~ 'Very High',
+                               spin_rate >= 2000 ~ 'High',
+                               spin_rate >= 1500 ~ 'Moderate',
+                               spin_rate >= 1000 ~ 'Low',
+                               TRUE ~ 'Very Low'
+                               )) %>%
+  mutate(spin_dir = case_when(spin_dir >= 250 ~ 'Very High',
+                              spin_dir >= 200 ~ 'High',
+                              spin_dir >= 150 ~ 'Moderate',
+                              spin_dir >= 100 ~ 'Low',
+                              TRUE ~ 'Very Low'
+                              )) %>%
+  mutate_all(as.factor)
+summary(outcomeRules)
+        
+```
+
+
+
+```{r}
+#Association rules algorithm on four seam fastball data against left handed hitters (stand == "L"). Right hand side set to "result = strikeout". Will ultimately tell us the association between the physical properties of fastballs and the outcome strikeout.
+
+FastballLefty <- filter(outcomeRules, pitch_type == 'FF' & stand == "L")
+ArulesFastballLefty <- FastballLefty %>% select(R, start_speed, px, pz, spin_rate, spin_dir)
+FFLeftySO <- apriori(ArulesFastballLefty,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.2,
+                                     minlen = 2),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'R=Strikeout'),
+                    control = list(verbose = F))
+
+FFLeftySO = sort(FFLeftySO,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(FFLeftySO)
+```
+
+```{r}
+#Association rules algorithm on four seam fastball data against right handed hitters (stand == "R"). Right hand side set to "result = strikeout". Will ultimately tell us the association between the physical properties of fastballs and the outcome strikeout.
+
+FastballR <- filter(outcomeRules, pitch_type == 'FF' & stand == "R")
+ArulesFastballR <- FastballR %>% select(R, start_speed, px, pz, spin_rate, spin_dir)
+FFRSO <- apriori(ArulesFastballR,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.2,
+                                     minlen = 2),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'R=Strikeout'),
+                    control = list(verbose = F))
+
+FFRSO = sort(FFRSO,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(FFRSO)
+```
+
+```{r}
+# it is also important to group the outcomes into a generic result variable that classifies each result as either a hit or an out. This will be important when setting the right hand side equal to result equals "hit" to show what physical properties of pitch type lead to base hits.
+
+outcomeGeneral <- filter(outcomeRules, R == "Double" | R == "Double Play" | R == "Field Error" | R == "Fielders Choice" | R == "Fielders Choice Out" | R == "Flyout" | R == "Force Out" | R == "Grounded Into DP" | R == "Groundout" | R == "Lineout" | R == "Home Run" |
+R == "Popout" | R == "Single" | R == "Strikeout" | R == "Strikeout - DP" | R == "Triple" | R == "Triple Play")
+
+outcomeGeneral <- outcomeGeneral %>% mutate(GR = case_when(R == "Double Play" | R == "Field Error" | R == "Fielders Choice" | R == "Fielders Choice Out" | R == "Flyout" | R == "Force Out" | R == "Grounded Into DP" | R == "Groundout" | R == "Lineout" | R == "Popout" | R == "Strikeout" | R == "Strikeout - DP" | R == "Triple Play" ~ "Out",
+                                                                 R == "Double" | R == "Home Run" | R == "Single" | R == "Triple" ~ "Hit"))
+outcomeGeneral <- outcomeGeneral %>% mutate_all(as.factor)
+summary(outcomeGeneral)
+```
+
+```{r}
+#Association rules algorithm on four seam fastball data against left handed hitters (stand == "L"). Right hand side set to "general result = hit". Will ultimately tell us the association between the physical properties of fastballs and the outcome hit.
+
+GeneralFastballLefty <- filter(outcomeGeneral, pitch_type == 'FF' & stand == "L")
+LFastballGeneralArules <- GeneralFastballLefty %>% select(GR, start_speed, px, pz, spin_rate, spin_dir)
+FFLeftyH <- apriori(LFastballGeneralArules,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.2,
+                                     minlen = 2),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'GR=Hit'),
+                    control = list(verbose = F))
+
+FFLeftyH = sort(FFLeftyH,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(FFLeftyH)
+```
+
+```{r}
+#Association rules algorithm on four seam fastball data against right handed hitters (stand == "R"). Right hand side set to "general result = hit". Will ultimately tell us the association between the physical properties of fastballs and the outcome hit.
+
+GeneralFastballRighty <- filter(outcomeGeneral, pitch_type == 'FF' & stand == "R")
+RFastballGeneralArules <- GeneralFastballRighty %>% select(GR, start_speed, px, pz, spin_rate, spin_dir)
+FFRightyH <- apriori(RFastballGeneralArules,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.2,
+                                     minlen = 2),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'GR=Hit'),
+                    control = list(verbose = F))
+
+FFRightyH = sort(FFRightyH,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(FFRightyH)
+```
+
+
+```{r}
+#Association rules algorithm on slider data against left handed hitters (stand == "L"). Right hand side set to "result = strikeout". Will ultimately tell us the association between the physical properties of sliders and the outcome strikeout.
+
+SliderLefty <- filter(outcomeRules, pitch_type == 'SL' & stand == "L")
+ArulesSliderLefty <- SliderLefty %>% select(R, start_speed, px, pz, spin_rate, spin_dir)
+SLLeftySO <- apriori(ArulesSliderLefty,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.7,
+                                     minlen = 2,
+                                     maxlen = 4),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'R=Strikeout'),
+                    control = list(verbose = F))
+
+SLLeftySO = sort(SLLeftySO,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(SLLeftySO)
+summary(ArulesSliderLefty)
+```
+
+```{r}
+#Association rules algorithm on slider data against right handed hitters (stand == "R"). Right hand side set to "result = strikeout". Will ultimately tell us the association between the physical properties of sliders and the outcome strikeout.
+
+SliderRighty <- filter(outcomeRules, pitch_type == 'SL' & stand == "R")
+ArulesSliderRighty <- SliderRighty %>% select(R, start_speed, px, pz, spin_rate, spin_dir)
+SLRightySO <- apriori(ArulesSliderRighty,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.6,
+                                     minlen = 2),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'R=Strikeout'),
+                    control = list(verbose = F))
+
+SLRightySO = sort(SLRightySO,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(SLRightySO)
+summary(ArulesSliderLefty)
+```
+
+```{r}
+#Association rules algorithm on slider data against left handed hitters (stand == "L"). Right hand side set to "general result = hit". Will ultimately tell us the association between the physical properties of sliders and the outcome hit.
+
+GeneralSliderLefty <- filter(outcomeGeneral, pitch_type == 'SL' & stand == "L")
+LSliderGeneralArules <- GeneralSliderLefty %>% select(GR, start_speed, px, pz, spin_rate, spin_dir)
+SLLeftyH <- apriori(LSliderGeneralArules,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.2,
+                                     minlen = 2,
+                                     maxlen = 3),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'GR=Hit'),
+                    control = list(verbose = F))
+
+SLLeftyH = sort(SLLeftyH,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(SLLeftyH)
+summary(LSliderGeneralArules)
+```
+
+```{r}
+#Association rules algorithm on slider data against right handed hitters (stand == "R"). Right hand side set to "general result = hit". Will ultimately tell us the association between the physial properties of sliders and the outcome hit.
+
+GeneralSliderRighty <- filter(outcomeGeneral, pitch_type == 'SL' & stand == "R")
+RSliderGeneralArules <- GeneralSliderRighty %>% select(GR, start_speed, px, pz, spin_rate, spin_dir)
+SLRightyH <- apriori(RSliderGeneralArules,
+                    parameter = list(supp = 0.01, 
+                                     conf = 0.2,
+                                     minlen = 2,
+                                     maxlen = 3),
+                    appearance = list(default = 'lhs',
+                                      rhs = 'GR=Hit'),
+                    control = list(verbose = F))
+
+SLRightyH = sort(SLRightyH,
+             by = 'confidence',
+             decreasing = TRUE)
+
+inspect(SLRightyH)
+```
+
+
