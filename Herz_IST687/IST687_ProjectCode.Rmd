@@ -1,0 +1,188 @@
+---
+title: "IST 687 Group Project"
+date: '2022-11-30'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. Install and Library Needed Packages 
+```{r,echo = T, results= 'hide', error=FALSE, warning =FALSE, message=FALSE}
+#Library Needed Packages
+library(tidyverse)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(imputeTS)
+library(e1071)
+library(rpart)
+library(rpart.plot)
+```
+
+2. Load Dataset 
+```{r}
+data <- read_csv("https://intro-datascience.s3.us-east-2.amazonaws.com/HMO_data.csv")
+```
+
+3. Change Character Variables to Factor Variables for Analysis 
+```{r}
+str(data)
+data$smoker = as.factor(data$smoker)
+data$location = as.factor(data$location)
+data$location_type = as.factor(data$location_type)
+data$education_level = as.factor(data$education_level)
+data$yearly_physical = as.factor(data$yearly_physical)
+data$exercise = as.factor(data$exercise)
+data$married = as.factor(data$married)
+data$hypertension = as.factor(data$hypertension)
+data$gender = as.factor(data$gender)
+```
+
+4. Fix NA values and remove ones that can't be interpolated 
+```{r}
+sum(is.na(data)) #158 Null Values
+data = na_interpolation(data)
+sum(is.na(data)) #80 Null Values remain. Can't be changed because character value
+data = drop_na(data) #Remove these values 
+sum(is.na(data)) #0 Null values left
+ 
+```
+
+5. Linear Model to see which variables are predictive of Cost 
+```{r}
+lm <- lm(cost ~., data = data)
+summary(lm)
+
+#Age, BMI, Children, Being a Smoker, Not Exercising, living in New York, and having Hypertension raise costs of healthcare
+```
+
+6. Create variable for Expensive Healthcare
+```{r}
+data$expensive[data$cost >= 5000] <-  "Expensive" 
+#top 25% of costs are labeled expensive 
+data$expensive[is.na(data$expensive)] <-  "Normal"
+data$expensive = as.factor(data$expensive) #change to factor variable
+```
+
+7. Partition data into training and test set 
+```{r}
+new_data = data [-14] #removing "cost" variable from data. 
+trainList <- createDataPartition(y=new_data$expensive,p=.4,list=FALSE) #40% train data
+train <- new_data[trainList,]
+test <- new_data[-trainList,]
+```
+
+8. Create SVM Classification Model 
+```{r}
+model <- ksvm(data = train, expensive ~., C=5,CV=3, prob.model = TRUE )
+model
+
+svmPred <- predict(model, newdata = test) #predict using test data
+```
+
+9. Look at Accuracy of Model 
+```{r}
+confusionMatrix(svmPred, test$expensive) 
+
+#87.8% accurate with 59.6% sensitivity 
+```
+10. Rpart Model 
+```{r}
+rpartmodel <- rpart(expensive ~ ., data = train)
+rpart.plot(rpartmodel)
+
+rpartmodel <- rpart(expensive ~ ., data = test)
+predictValues <- predict(rpartmodel, type = "class")
+table(predictValues)
+
+```
+11. Look at Rpart Accuracy 
+```{r}
+confusionMatrix(predictValues, test$expensive)
+
+#89.0% accuracy with 61.1% sensitivity. 
+#This is the better model
+
+```
+
+12. Visualizations 
+```{r}
+ggplot(data, aes(expensive, age)) + geom_boxplot() + ggtitle("Healthcare Cost by Age")
+ggplot(data, aes(expensive, bmi)) + geom_boxplot() + ggtitle("Healtchare Cost by BMI")
+ggplot(data, aes(expensive, children)) + geom_boxplot() + ggtitle("Healthcare Cost by number of Children")
+```
+
+13. Subset Data into Expensive and Normal 
+```{r}
+expensive = filter(data, expensive == "Expensive")
+normal = filter(data, expensive == "Normal")
+data$smokeryes <-ifelse(data$smoker == 'yes', 1,0)
+data$smokerno <- ifelse(data$smoker == 'no',1,0)
+
+#there's more no. of non smokers but smokers clearly have a higher cost the graph is right skewed
+ggplot(expensive, aes(x = cost)) +
+geom_histogram(aes(color = smoker), fill = "white",position = "identity", bins = 30) +
+scale_color_manual(values = c("#00AFBB", "#E7B800")) +geom_vline(xintercept = mean(expensive$cost)) +geom_vline(xintercept = mean(normal$cost)) + ggtitle("Cost of Healthcare Smokers vs Non-Smokers")
+
+
+#looks like being a smoking has no effect on BMI 
+ggplot(data, aes(x = bmi)) +
+geom_histogram(aes(color =smoker), fill = "white",position = "identity", bins = 30) +
+scale_color_manual(values = c("#00AFBB", "#E7B800")) #+geom_vline(xintercept = data(expensive$cost))
+
+#linear relationship between age and cost for normal dataset
+ggplot(normal, aes(x=age, y=cost, color=cost))+geom_point()
+
+#non linear relationship. if this is an exponential trend, can we show a trend line??
+ggplot(expensive, aes(x=age, y=cost, color=cost))+geom_point() # ylim(5000,65000)
+
+plot(data$smoker)
+plot(data$hypertension)
+
+```
+
+
+14. US Map plotting for costs for each state in US
+```{r}
+library(ggplot2)
+library(maps)
+library(ggmap)
+newDF <- data %>% group_by(location) %>% summarise(avgcost = sum(cost))
+#Load the pre-defined dataset 'state' is loaded in us dataframe
+us<- map_data("state")
+#Change state_name column values to lowercase 
+us$state_name <- tolower(us$region)
+#check the structure of the us dataframe
+str(us)
+newDF$location <- tolower(newDF$location)
+str(newDF)
+#merge() us and dfSimple dataframe, the merge is done based on state_name
+#column in both dataframes
+farewithgeom <- merge(us,newDF,by.y="location",by.x="state_name") 
+#arrange the order of the popwithgeom dataframe
+#structure of the popwithgeom
+str(farewithgeom)
+#Calculate the bounding box to define the us states
+bb <- c(left = min(us$long), bottom = min(us$lat),right = max(us$long), top = max(us$lat))
+map <- get_stamenmap(bbox = bb, zoom=5)
+#plot map using ggmap and add the color shading based on the Pop
+#column of dfNew dataframe
+ggmap(map) + geom_polygon(data=farewithgeom,color="black", alpha=0.9,aes(x=long,y=lat,group=group,fill=avgcost))
+```
+
+15. 
+```{r}
+#save the model and the data
+test %>% mutate_if(is.character, utf8::utf8_encode)
+save(rpartmodel, file = "rpart.rda")
+save(test, file = "testdata.rda")
+
+```
+
+
+data(testdata.rda)
+```{r}
+
+```
