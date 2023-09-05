@@ -1,0 +1,12 @@
+This sub-folder contains the following components
+
+a.	Project Presentation (PowerPoint) 
+b.	Docker-Compose File (Yaml) 
+c.	Hadoop & HBase (.ENV files) 
+d.	Presentation & Demo (.mov)  
+e.	Data File (Python Notebook) 
+f.	Spark File (Python Notebook) 
+g.	Code Commands (Word) 
+h.	Project Prompts (Word) 
+
+Microsoft Word and PPT are necessary as well as Visual Code Studio to view the YAML, .ENV, and Python files. 
