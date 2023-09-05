@@ -1,0 +1,8 @@
+This sub-folder contains the following components: 
+a.	Data Files (CSV) 
+b.	Project Code (PDF) 
+c.	Project Code (.rmd) 
+d.	Shiny App (R file) 
+e.	Project Presentation (PowerPoint) 
+
+A csv viewer such as Numbers or Excel is necessary, as well as a PDF viewer, Microsoft PowerPoint, and R-Studio 
