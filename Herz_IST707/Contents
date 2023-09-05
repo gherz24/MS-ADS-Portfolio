@@ -1,0 +1,10 @@
+This sub-folder contains the following components: 
+a.	ETL Documentation (Word) 
+b.	Project Presentation (PowerPoint) 
+c.	High-Level Dimensional Modeling Workbook (Excel) 
+d.	Detailed Dimensional Modeling Workbook (Excel)
+e.	Project Charter Canvas (Word) 
+f.	ETL Code (Zip File, .dtsx) 
+
+Microsoft Word, PowerPoint, and Excel (or MAC equivalents) are needed to view these contents. 
+A special software that can open data transformation packages, such as Microsoft SQL Server Integration Services is also needed for the ETL code. 
